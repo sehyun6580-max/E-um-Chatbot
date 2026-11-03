@@ -1,5 +1,6 @@
 import hmac
 import html
+import json
 import os
 import re
 from pathlib import Path
@@ -444,6 +445,30 @@ def stream_openai(cfg, system_prompt, history):
         raise RuntimeError(f"모델이 텍스트를 반환하지 않았습니다 (finish_reason={finish})")
 
 
+DRAFT_PROMPT = """너는 '이음'의 X-ROOM 정리 도우미다. 아래 대화를 읽고, 사용자가 '오늘 밤, 당신의 속마음 문자'에 적을 초안을 만든다.
+- 사용자의 말투(1인칭)로 쓰되, 사용자가 대화에서 실제로 말하거나 분명히 동의한 내용만 쓴다. 챗봇이 제안했지만 사용자가 받아들이지 않은 내용은 쓰지 않는다.
+- 결론(헤어진다/계속 만난다 등)을 대신 정하지 않는다. 사용자가 직접 정한 행동만 적는다.
+- 아직 찾지 못한 항목은 빈 문자열로 둔다. 지어내지 않는다.
+반드시 아래 형식의 JSON 한 개만 출력한다. 다른 말은 쓰지 않는다.
+{"topic": "어떤 고민에 대한 기록인지 한 줄 (30자 이내)", "rule": "대화로 찾은 나의 핵심 연애 기준 1~2문장", "final": "지금의 생각 정리 2~3문장"}"""
+
+
+def draft_note(cfg, messages):
+    """지금까지의 대화를 바탕으로 속마음 문자 세 칸의 초안을 만든다. (사용자가 고쳐 쓰는 출발점)"""
+    convo = "\n".join(
+        ("사용자" if m["role"] == "user" else "이음") + ": " + m["content"]
+        for m in messages[-MAX_HISTORY:]
+        if m["content"].strip()
+    )
+    stream = stream_anthropic if cfg["provider"] == "anthropic" else stream_openai
+    raw = "".join(stream(cfg, DRAFT_PROMPT, [{"role": "user", "content": convo}]))
+    found = re.search(r"\{.*\}", raw, re.S)
+    if not found:
+        raise RuntimeError("초안 형식을 읽지 못했습니다.")
+    data = json.loads(found.group(0))
+    return {k: str(data.get(k) or "").strip() for k in ("topic", "rule", "final")}
+
+
 def stream_reply(cfg, history, user_turns):
     system_prompt = SYSTEM_PROMPTS[cfg["key"]] + stage_note(user_turns)
     if cfg["provider"] == "anthropic":
@@ -523,30 +548,37 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 /* ── 이음 → Mind Prism: 러브레터가 점선 궤적을 따라 날아가는 연출 ── */
 div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-index:2; }
 .eum-letter{ position:relative; height:0; pointer-events:none; }
-.eum-letter__stage{ position:absolute; top:-6px; left:38.6%; width:15%; height:120px; }
+.eum-letter__stage{
+  /* 타이틀과 같은 글자 크기를 써서 em 단위로 두 타이틀 사이 간격을 계산한다.
+     두 컬럼(gap 4rem)의 가운데 = 50%, 타이틀 폭: 이음 E-um ≈ 4.66em, Mind Prism ≈ 5.63em
+     → 간격의 중심 = 50% - (5.63-4.66)/4 em, 간격의 폭 = 50% + 2rem - (4.66+5.63)/2 em */
+  position:absolute; font-size:clamp(2.8rem, 5.4vw, 4.6rem);
+  left:calc(50% - .241em); transform:translateX(-50%);
+  width:calc(50% + 2rem - 5.74em); height:1.6em; top:calc(-.383em);
+}
 .eum-letter__path{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
 .eum-letter__path path{
   fill:none; stroke:url(#eumLetterGrad); stroke-width:2; stroke-linecap:round;
   stroke-dasharray:2 9; vector-effect:non-scaling-stroke; opacity:.75;
 }
-.eum-letter__dot{ position:absolute; top:70px; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; }
+.eum-letter__dot{ position:absolute; top:58.3%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; }
 .eum-letter__dot--from{ left:0; background:#E9B23C; box-shadow:0 0 0 5px rgba(233,178,60,.18); }
 .eum-letter__dot--to{ left:100%; background:#2F55F5; box-shadow:0 0 0 5px rgba(47,85,245,.18); }
 /* 가로는 일정하게, 세로는 올라갈 땐 감속·내려올 땐 가속 → 점선과 같은 포물선 */
-.eum-letter__fly{ position:absolute; left:0; top:70px; animation:eumLetterX 5.2s linear infinite; }
+.eum-letter__fly{ position:absolute; left:0; top:58.3%; animation:eumLetterX 5.2s linear infinite; }
 .eum-letter__lift{ animation:eumLetterY 5.2s infinite; }
 .eum-letter__env{
   display:block; font-size:2rem; line-height:1; transform:translate(-50%,-50%);
   filter:drop-shadow(0 8px 10px rgba(120,60,20,.25)); animation:eumLetterTilt 5.2s ease-in-out infinite;
 }
 .eum-letter__pop{
-  position:absolute; left:100%; top:70px; font-size:1.05rem; color:#F06B8B;
+  position:absolute; left:100%; top:58.3%; font-size:1.05rem; color:#F06B8B;
   transform:translate(-50%,-50%) scale(0); animation:eumLetterPop 5.2s ease-out infinite;
 }
 @keyframes eumLetterX{ 0%{ left:0; opacity:0; } 8%{ opacity:1; } 88%{ opacity:1; } 100%{ left:100%; opacity:0; } }
 @keyframes eumLetterY{
   0%{ transform:translateY(0); animation-timing-function:cubic-bezier(.33,.66,.66,1); }
-  50%{ transform:translateY(-54px); animation-timing-function:cubic-bezier(.33,0,.66,.33); }
+  50%{ transform:translateY(-.747em); animation-timing-function:cubic-bezier(.33,0,.66,.33); }
   100%{ transform:translateY(0); }
 }
 @keyframes eumLetterTilt{ 0%{ rotate:-16deg; } 50%{ rotate:0deg; } 100%{ rotate:16deg; } }
@@ -558,7 +590,7 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 @media (prefers-reduced-motion: reduce){
   .eum-letter__fly, .eum-letter__lift, .eum-letter__env, .eum-letter__pop{ animation:none !important; }
   .eum-letter__fly{ left:50%; }
-  .eum-letter__lift{ transform:translateY(-54px); }
+  .eum-letter__lift{ transform:translateY(-.747em); }
 }
 @media (max-width:640px){ .eum-letter{ display:none; } }
 
@@ -744,7 +776,12 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .xr-head{ background:#F6D774; padding:.7rem 1.4rem 1.15rem; }
 .xr-handle{ display:block; width:68px; height:7px; border-radius:7px; background:rgba(90,70,20,.18); margin:0 auto .95rem; }
 .xr-head__title{ font-weight:800; font-size:1.18rem; color:var(--ink); word-break:keep-all; }
-.st-key-xr_paper [data-testid="stForm"]{ padding:1.1rem 1.4rem 1.4rem !important; border:none !important; }
+.st-key-xr_paper [data-testid="stForm"]{ padding:.6rem 1.4rem 1.4rem !important; border:none !important; }
+.st-key-btn_xr_draft{ padding:.7rem 1.4rem 0; }
+.st-key-btn_xr_draft button{ min-height:0 !important; padding:.35rem .8rem !important; border-radius:999px; background:#FFF6DA !important; }
+.st-key-btn_xr_draft button p{ font-size:.82rem; font-weight:700; color:#7A5500 !important; }
+.st-key-btn_xr_draft button:hover:not(:disabled){ background:#FBE8AE !important; }
+.st-key-btn_xr_draft button:disabled{ opacity:.5; }
 .st-key-xr_paper [data-testid="stWidgetLabel"] p{ font-size:.86rem; font-weight:600; color:var(--ink); }
 .st-key-xr_paper [data-testid="stTextAreaRootElement"]{
   background:#F1F1F1 !important; border:1px solid #E6E6E6 !important; border-radius:10px !important;
@@ -1009,6 +1046,22 @@ with right:
                     "<div class='xr-head__title'>오늘 밤, 당신의 속마음 문자</div></div>",
                     unsafe_allow_html=True,
                 )
+                has_talk = any(m["role"] == "user" for m in st.session_state.messages)
+                if st.button(
+                    "✨ 오늘 대화로 초안 채우기", key="btn_xr_draft", type="tertiary", disabled=not has_talk,
+                    help="대화에서 내가 직접 말한 내용으로 세 칸을 채워요. 내 말로 고쳐 쓴 뒤 붙여 보세요.",
+                ):
+                    try:
+                        with st.spinner("대화를 정리하는 중..."):
+                            draft = draft_note(cfg, st.session_state.messages)
+                    except Exception as e:
+                        st.toast(f"초안을 만들지 못했어요: {e}")
+                    else:
+                        # 폼 위젯이 그려지기 전이라 값을 바로 넣을 수 있다
+                        st.session_state.xr_topic = draft["topic"]
+                        st.session_state.xr_rule = draft["rule"]
+                        st.session_state.xr_final = draft["final"]
+                        st.toast("초안을 채웠어요. 내 말로 고쳐 써 보세요 ✍️")
                 with st.form("xr_form", clear_on_submit=True, border=False):
                     topic = st.text_area(
                         "어떤 고민에 대한 기록인가요?", key="xr_topic", height=80,
