@@ -776,12 +776,17 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .xr-head{ background:#F6D774; padding:.7rem 1.4rem 1.15rem; }
 .xr-handle{ display:block; width:68px; height:7px; border-radius:7px; background:rgba(90,70,20,.18); margin:0 auto .95rem; }
 .xr-head__title{ font-weight:800; font-size:1.18rem; color:var(--ink); word-break:keep-all; }
-.st-key-xr_paper [data-testid="stForm"]{ padding:.6rem 1.4rem 1.4rem !important; border:none !important; }
-.st-key-btn_xr_draft{ padding:.7rem 1.4rem 0; }
-.st-key-btn_xr_draft button{ min-height:0 !important; padding:.35rem .8rem !important; border-radius:999px; background:#FFF6DA !important; }
-.st-key-btn_xr_draft button p{ font-size:.82rem; font-weight:700; color:#7A5500 !important; }
-.st-key-btn_xr_draft button:hover:not(:disabled){ background:#FBE8AE !important; }
-.st-key-btn_xr_draft button:disabled{ opacity:.5; }
+.st-key-xr_paper [data-testid="stForm"]{ padding:1.1rem 1.4rem 1.4rem !important; border:none !important; }
+/* 초안 채우기: 오른쪽 보드 아래, 유리 질감의 넓은 버튼 */
+.st-key-btn_xr_draft{ margin-top:.4rem; }
+.st-key-btn_xr_draft button{
+  min-height:3rem; border-radius:16px; border:1.5px dashed rgba(255,255,255,.95) !important;
+  background:rgba(255,255,255,.42) !important; backdrop-filter:blur(6px);
+  box-shadow:0 12px 22px -16px rgba(20,30,100,.6); transition:background-color .2s, transform .15s;
+}
+.st-key-btn_xr_draft button p{ font-size:.9rem; font-weight:700; color:#141A40 !important; }
+.st-key-btn_xr_draft button:hover:not(:disabled){ background:rgba(255,255,255,.7) !important; transform:translateY(-1px); }
+.st-key-btn_xr_draft button:disabled{ opacity:.55; }
 .st-key-xr_paper [data-testid="stWidgetLabel"] p{ font-size:.86rem; font-weight:600; color:var(--ink); }
 .st-key-xr_paper [data-testid="stTextAreaRootElement"]{
   background:#F1F1F1 !important; border:1px solid #E6E6E6 !important; border-radius:10px !important;
@@ -1039,6 +1044,27 @@ with right:
     with st.container(key="xroom_card"):
         form_col, notes_col = st.columns([1.2, 1], gap="medium")
 
+        # 초안 채우기 버튼은 여유 있는 오른쪽 보드 아래에 둔다.
+        # 폼 위젯보다 먼저 값을 넣어야 하므로 오른쪽 컬럼을 먼저 채우고,
+        # 포스트잇 보드는 폼 제출까지 반영되도록 자리(board)만 잡아 두었다가 마지막에 그린다.
+        with notes_col:
+            board = st.container()
+            has_talk = any(m["role"] == "user" for m in st.session_state.messages)
+            if st.button(
+                "✨ 오늘 대화로 초안 채우기", key="btn_xr_draft", disabled=not has_talk, width="stretch",
+                help="대화에서 내가 직접 말한 내용으로 왼쪽 문자 세 칸을 채워요. 내 말로 고쳐 쓴 뒤 붙여 보세요.",
+            ):
+                try:
+                    with st.spinner("대화를 정리하는 중..."):
+                        draft = draft_note(cfg, st.session_state.messages)
+                except Exception as e:
+                    st.toast(f"초안을 만들지 못했어요: {e}")
+                else:
+                    st.session_state.xr_topic = draft["topic"]
+                    st.session_state.xr_rule = draft["rule"]
+                    st.session_state.xr_final = draft["final"]
+                    st.toast("초안을 채웠어요. 내 말로 고쳐 써 보세요 ✍️")
+
         with form_col:
             with st.container(key="xr_paper"):
                 st.markdown(
@@ -1046,22 +1072,6 @@ with right:
                     "<div class='xr-head__title'>오늘 밤, 당신의 속마음 문자</div></div>",
                     unsafe_allow_html=True,
                 )
-                has_talk = any(m["role"] == "user" for m in st.session_state.messages)
-                if st.button(
-                    "✨ 오늘 대화로 초안 채우기", key="btn_xr_draft", type="tertiary", disabled=not has_talk,
-                    help="대화에서 내가 직접 말한 내용으로 세 칸을 채워요. 내 말로 고쳐 쓴 뒤 붙여 보세요.",
-                ):
-                    try:
-                        with st.spinner("대화를 정리하는 중..."):
-                            draft = draft_note(cfg, st.session_state.messages)
-                    except Exception as e:
-                        st.toast(f"초안을 만들지 못했어요: {e}")
-                    else:
-                        # 폼 위젯이 그려지기 전이라 값을 바로 넣을 수 있다
-                        st.session_state.xr_topic = draft["topic"]
-                        st.session_state.xr_rule = draft["rule"]
-                        st.session_state.xr_final = draft["final"]
-                        st.toast("초안을 채웠어요. 내 말로 고쳐 써 보세요 ✍️")
                 with st.form("xr_form", clear_on_submit=True, border=False):
                     topic = st.text_area(
                         "어떤 고민에 대한 기록인가요?", key="xr_topic", height=80,
@@ -1084,7 +1094,7 @@ with right:
                     else:
                         st.toast("한 칸이라도 적어야 포스트잇을 붙일 수 있어요.")
 
-        with notes_col:
+        with board:
             st.markdown(
                 "<div class='xr-notes__label'>작성한 정리 포스트잇</div>"
                 + render_notes_html(st.session_state.notes),
@@ -1093,7 +1103,6 @@ with right:
             if st.session_state.notes and st.button("포스트잇 모두 떼기", type="tertiary", key="btn_clear_notes"):
                 st.session_state.notes = []
                 st.rerun()
-
 
 # ─────────────────────────────────────────────
 # 8. 사용자 입력 → 실제 LLM 응답 (왼쪽 채팅창 안에 표시)
