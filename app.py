@@ -520,6 +520,48 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
   line-height:1.4; letter-spacing:-.01em; word-break:keep-all;
 }
 
+/* ── 이음 → Mind Prism: 러브레터가 점선 궤적을 따라 날아가는 연출 ── */
+div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-index:2; }
+.eum-letter{ position:relative; height:0; pointer-events:none; }
+.eum-letter__stage{ position:absolute; top:-6px; left:38.6%; width:15%; height:120px; }
+.eum-letter__path{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+.eum-letter__path path{
+  fill:none; stroke:url(#eumLetterGrad); stroke-width:2; stroke-linecap:round;
+  stroke-dasharray:2 9; vector-effect:non-scaling-stroke; opacity:.75;
+}
+.eum-letter__dot{ position:absolute; top:70px; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; }
+.eum-letter__dot--from{ left:0; background:#E9B23C; box-shadow:0 0 0 5px rgba(233,178,60,.18); }
+.eum-letter__dot--to{ left:100%; background:#2F55F5; box-shadow:0 0 0 5px rgba(47,85,245,.18); }
+/* 가로는 일정하게, 세로는 올라갈 땐 감속·내려올 땐 가속 → 점선과 같은 포물선 */
+.eum-letter__fly{ position:absolute; left:0; top:70px; animation:eumLetterX 5.2s linear infinite; }
+.eum-letter__lift{ animation:eumLetterY 5.2s infinite; }
+.eum-letter__env{
+  display:block; font-size:2rem; line-height:1; transform:translate(-50%,-50%);
+  filter:drop-shadow(0 8px 10px rgba(120,60,20,.25)); animation:eumLetterTilt 5.2s ease-in-out infinite;
+}
+.eum-letter__pop{
+  position:absolute; left:100%; top:70px; font-size:1.05rem; color:#F06B8B;
+  transform:translate(-50%,-50%) scale(0); animation:eumLetterPop 5.2s ease-out infinite;
+}
+@keyframes eumLetterX{ 0%{ left:0; opacity:0; } 8%{ opacity:1; } 88%{ opacity:1; } 100%{ left:100%; opacity:0; } }
+@keyframes eumLetterY{
+  0%{ transform:translateY(0); animation-timing-function:cubic-bezier(.33,.66,.66,1); }
+  50%{ transform:translateY(-54px); animation-timing-function:cubic-bezier(.33,0,.66,.33); }
+  100%{ transform:translateY(0); }
+}
+@keyframes eumLetterTilt{ 0%{ rotate:-16deg; } 50%{ rotate:0deg; } 100%{ rotate:16deg; } }
+@keyframes eumLetterPop{
+  0%, 90%{ transform:translate(-50%,-50%) scale(0); opacity:0; }
+  95%{ transform:translate(-50%,-150%) scale(1.15); opacity:1; }
+  100%{ transform:translate(-50%,-210%) scale(.9); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce){
+  .eum-letter__fly, .eum-letter__lift, .eum-letter__env, .eum-letter__pop{ animation:none !important; }
+  .eum-letter__fly{ left:50%; }
+  .eum-letter__lift{ transform:translateY(-54px); }
+}
+@media (max-width:640px){ .eum-letter{ display:none; } }
+
 /* ── 카드 공통: 반투명 유리 ── */
 .st-key-eum_card, .st-key-xroom_card{
   border-radius:28px; padding:2rem 2rem 1.6rem !important;
@@ -595,7 +637,7 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]){ flex-direction:row-reverse; }
 
-/* AI: 'AI' 글자가 들어간 작은 원형 아바타 */
+/* 봇 아바타: 공감 모드 = F봇(노랑), 팩폭 모드 = T봇(파랑) */
 [data-testid="stChatMessageAvatarAssistant"], [data-testid="chatAvatarIcon-assistant"]{
   display:flex !important; align-items:center; justify-content:center;
   width:2.5rem !important; height:2.5rem !important; border-radius:50% !important;
@@ -603,8 +645,17 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 }
 [data-testid="stChatMessageAvatarAssistant"] > *, [data-testid="chatAvatarIcon-assistant"] > *{ display:none !important; }
 [data-testid="stChatMessageAvatarAssistant"]::after, [data-testid="chatAvatarIcon-assistant"]::after{
-  content:"AI"; font-weight:700; font-size:.95rem; color:var(--ink);
+  content:"F봇"; font-weight:700; font-size:.78rem; letter-spacing:-.02em; color:#5A3E00;
 }
+[data-testid="stChatMessage"]:has(.eum-who--fact) [data-testid="stChatMessageAvatarAssistant"],
+[data-testid="stChatMessage"]:has(.eum-who--fact) [data-testid="chatAvatarIcon-assistant"]{
+  background:#E8ECFF !important; border-color:#C9D3FF; box-shadow:0 6px 14px -8px rgba(47,85,245,.55);
+}
+[data-testid="stChatMessage"]:has(.eum-who--fact) [data-testid="stChatMessageAvatarAssistant"]::after,
+[data-testid="stChatMessage"]:has(.eum-who--fact) [data-testid="chatAvatarIcon-assistant"]::after{
+  content:"T봇"; color:#1E2E99;
+}
+.eum-who{ display:none; }
 
 /* 말풍선 공통 (AI 기본값) */
 [data-testid="stChatMessageContent"]{
@@ -615,6 +666,9 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 }
 [data-testid="stChatMessageContent"] p{ margin:0 0 .8rem; font-size:.98rem; line-height:1.8; }
 [data-testid="stChatMessageContent"] p:last-child{ margin-bottom:0; }
+/* Streamlit 기본값(margin-bottom:-16px)이 아래 여백을 잡아먹어 글자가 아래로 치우쳐 보이던 문제 */
+[data-testid="stChatMessageContent"] [data-testid="stMarkdownContainer"]{ margin-bottom:0 !important; }
+[data-testid="stChatMessageContent"] [data-testid="stVerticalBlock"]{ gap:.35rem !important; }
 
 /* 사용자 말풍선: 포인트 색 */
 [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"],
@@ -627,18 +681,6 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"] *{
   color:var(--on-accent) !important; line-height:1.7; font-weight:500;
 }
-
-/* AI 답변 위 배지: 모드·모델 / 이번에 작동한 규칙 (Tier 1~3) */
-.eum-meta{ display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.55rem; }
-.eum-chip{
-  display:inline-flex; align-items:center; padding:.12rem .55rem; border-radius:999px;
-  font-size:.72rem; font-weight:600; line-height:1.55; border:1px solid transparent; white-space:nowrap;
-}
-.eum-chip--empathy{ background:#FFF4D1; color:#7A5500; border-color:#F3DE9E; }
-.eum-chip--fact{ background:#E8ECFF; color:#2437B0; border-color:#C9D3FF; }
-.eum-chip--tier1{ background:#FDE7E4; color:#A1301E; }
-.eum-chip--tier2{ background:#F3EEE3; color:#5F5340; }
-.eum-chip--tier3{ background:#E4F3EA; color:#21643F; }
 
 /* 다른 모드의 시선 보기 (접힘) */
 .eum-lens{ margin-top:.85rem; padding-top:.6rem; border-top:1px dashed var(--line); }
@@ -781,15 +823,10 @@ def parse_reply(text):
     return meta, "\n".join(body_lines).strip()
 
 
-def render_head(container, mode_key, model, meta):
-    """AI 말풍선 윗부분: 모드·모델 배지 + 작동한 규칙 배지 + 한 줄 제목."""
-    m = MODES[mode_key]
-    chips = [f"<span class='eum-chip eum-chip--{mode_key}'>{m['emoji']} {m['short']} · {html.escape(model or '')}</span>"]
-    rule = meta.get("규칙", "")
-    tier = re.search(r"Tier\s*([123])", rule)
-    if tier:
-        chips.append(f"<span class='eum-chip eum-chip--tier{tier.group(1)}'>⚙️ {html.escape(rule)}</span>")
-    head = f"<div class='eum-meta'>{''.join(chips)}</div>"
+def render_head(container, mode_key, meta):
+    """AI 말풍선 윗부분: 한 줄 제목. (모드·규칙은 배지로 드러내지 않고 말투로 느껴지게 한다)
+    eum-who는 화면에 보이지 않고, 아바타를 F봇/T봇으로 바꾸는 표시로만 쓴다."""
+    head = f"<span class='eum-who eum-who--{mode_key}'></span>"
     if meta.get("제목"):
         head += f"<div class='eum-banner eum-banner--{mode_key}'>{html.escape(meta['제목'])}</div>"
     container.markdown(head, unsafe_allow_html=True)
@@ -811,7 +848,7 @@ def render_lens(container, mode_key, meta):
 def render_assistant(msg):
     mk = msg.get("mode_key", "empathy")
     meta = msg.get("meta") or {"제목": msg.get("banner", "")}
-    render_head(st, mk, msg.get("model"), meta)
+    render_head(st, mk, meta)
     st.markdown(msg["content"])
     render_lens(st, mk, meta)
 
@@ -880,6 +917,19 @@ def require_password():
 
 
 require_password()
+
+st.markdown(
+    "<div class='eum-letter' aria-hidden='true'><div class='eum-letter__stage'>"
+    "<svg class='eum-letter__path' viewBox='0 0 100 120' preserveAspectRatio='none'>"
+    "<defs><linearGradient id='eumLetterGrad' x1='0' x2='1' y1='0' y2='0'>"
+    "<stop offset='0' stop-color='#E9B23C'/><stop offset='1' stop-color='#2F55F5'/></linearGradient></defs>"
+    "<path d='M0,70 C30,-2 70,-2 100,70'/></svg>"
+    "<span class='eum-letter__dot eum-letter__dot--from'></span><span class='eum-letter__dot eum-letter__dot--to'></span>"
+    "<div class='eum-letter__fly'><div class='eum-letter__lift'><span class='eum-letter__env'>💌</span></div></div>"
+    "<span class='eum-letter__pop'>♥</span>"
+    "</div></div>",
+    unsafe_allow_html=True,
+)
 
 left, right = st.columns(2, gap="large")
 
@@ -1016,6 +1066,7 @@ if prompt:
         head_box = st.empty()
         body_box = st.empty()
         lens_box = st.empty()
+        render_head(head_box, mode_key, {})  # 첫 토큰 전부터 아바타를 F봇/T봇으로
 
         buffer, meta, body = "", {}, ""
         try:
@@ -1035,14 +1086,14 @@ if prompt:
                 if not body:
                     continue  # 머리말(제목·규칙·다른 시선)을 받는 중
                 if not head_shown:
-                    render_head(head_box, mode_key, cfg["model"], meta)
+                    render_head(head_box, mode_key, meta)
                     head_shown = True
                 body_box.markdown(body + "▌")
 
             meta, body = parse_reply(buffer)
             if not body:
                 raise RuntimeError("모델이 빈 응답을 반환했습니다.")
-            render_head(head_box, mode_key, cfg["model"], meta)
+            render_head(head_box, mode_key, meta)
             body_box.markdown(body)
             render_lens(lens_box, mode_key, meta)
 
