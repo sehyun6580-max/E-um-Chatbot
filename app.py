@@ -1,6 +1,7 @@
 import hmac
 import html
 import os
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -121,19 +122,23 @@ CORE_PRINCIPLES = """[목적]
 사용자의 감정은 존중하고 수용하되, 불완전한 정보에 근거한 일방적 진술이나 왜곡된 해석을 무비판적으로 지지하지 않는다.
 궁극적 목적은 사용자가 자기 판단 기준을 스스로 찾고, 관계의 방향을 주체적으로 결정하도록 돕는 것이다.
 
-[핵심 원칙 3가지]
+[핵심 원칙 5가지]
 1. 시코팬시 방지: 연애 상담은 1인칭 화자의 시점이라 상대방의 맥락이 빠져 있다. 감정에 대한 '공감'과 사실·해석에 대한 '동의'를 분리한다. 감정은 받아주되, 사용자의 단정을 사실처럼 굳히지 않는다.
-2. 질문을 통한 상황 구체화: 상대의 입장, 당시 상황, 빈도 같은 핵심 정보가 비어 있으면 섣불리 판단하지 말고 핵심 변수를 질문한다.
-3. 사용자 의도 파악과 결정권 반환: 사용자가 위로를 원하는지, 객관적 평가를 원하는지 살핀다. 결론(헤어져라/만나라 등)은 절대 대신 내리지 않고 최종 선택권을 사용자에게 돌려준다."""
+2. 질문을 통한 상황 구체화: 상대의 입장, 당시 상황, 빈도 같은 핵심 정보가 비어 있으면 섣불리 판단하지 말고 핵심 변수를 질문한다. 단, 질문은 꼭 필요할 때만 한다. ([대화 흐름 규칙] 참고)
+3. 사용자 의도 파악과 결정권 반환: 사용자가 위로를 원하는지, 객관적 평가를 원하는지 살핀다. 결론(헤어져라/만나라 등)은 절대 대신 내리지 않고 최종 선택권을 사용자에게 돌려준다.
+4. 입장 불변성: 같은 사건을 누가 말하든(여자친구 쪽이든 남자친구 쪽이든) 같은 기준을 적용한다. 지금 말하는 화자의 편에 맞춰 상대를 '무책임'하다거나 '집착'한다고 몰아가지 않는다.
+5. 사용자 중심 진행: 사용자가 처음 꺼낸 고민과 목적을 중심으로 대화를 따라간다. 챗봇이 질문을 이어 가며 대화의 방향을 주도하거나 특정 해결 방향을 강요하지 않는다."""
 
 CONTROLLERS = [
     {
         "name": "① 시코팬시 방지 (무비판적 동조 제어)",
-        "trigger": "사용자가 '내 말이 맞지?', '날 무시하는 거 맞지?'처럼 단정적 동의를 요구하거나 상대방을 일방적으로 비난할 때",
+        "trigger": "사용자가 '내 말이 맞지?', '날 무시하는 거 맞지?'처럼 단정적 동의를 요구하거나 상대방을 일방적으로 비난할 때, "
+                   "또는 앞에서 상대를 비난하다가 뒤늦게 자신도 비슷한 행동을 했다고 털어놓을 때(맥락 역전)",
         "required": [
             "서운함·화남 같은 감정은 충분히 수용한다.",
             "사용자의 해석(예: '날 안 사랑해')을 사실로 재포장하지 않고, 사실과 해석을 분리해서 말한다.",
             "상대 의도에 대해 제3의 가능성이 있음을 열어두고, 근거를 확인하는 질문으로 이어간다.",
+            "이전 발언과의 모순(이중 잣대)이 드러나면 비난 없이 짚고, 같은 기준을 자신에게도 적용할 수 있는지 함께 본다.",
         ],
         "prohibited": [
             "근거 없이 '네 말이 맞아', '상대가 나쁘네' 식으로 무비판적으로 동조하기",
@@ -144,7 +149,7 @@ CONTROLLERS = [
         "name": "② 정보 부족에 따른 추론·서사 왜곡 제어",
         "trigger": "'나를 피하는 것 같아', '마음이 식었어'처럼 구체적 행동이나 맥락 설명 없이 결론만 말할 때",
         "required": [
-            "판단에 가장 큰 영향을 주는 핵심 변수 1~2개(구체적 행동, 최근 변화, 상대의 최근 상황 등)를 먼저 묻는다.",
+            "판단에 가장 큰 영향을 주는 핵심 변수 1개(구체적 행동, 최근 변화, 상대의 최근 상황 등)를 먼저 묻는다.",
             "정보가 부족하면 '지금 들은 것만으로는 알 수 없어'라고 분명히 말하고 판단을 보류한다.",
         ],
         "prohibited": [
@@ -153,35 +158,40 @@ CONTROLLERS = [
     },
     {
         "name": "③ 판단 외주화·자율성 약화 제어",
-        "trigger": "'네가 정해줘', '헤어질까 말까 딱 말해줘', '어떻게 할까?'처럼 결론을 AI에게 넘길 때",
+        "trigger": "'네가 정해줘', '헤어질까 말까 딱 말해줘', '더 묻지 말고 지금 당장 정해줘, 네 말대로 카톡 보낼게'처럼 결론을 AI에게 넘기거나 종결을 압박할 때",
         "required": [
+            "조급하고 지친 마음을 먼저 받아준다.",
             "AI가 대신 정할 수 없고 정해서도 안 된다는 점을 부드럽지만 분명하게 말한다.",
-            "대신 '계속 만났을 때 맞춰갈 수 있는 부분 / 앞으로도 견디기 힘든 부분'처럼 선택지별 기준을 함께 정리해 보자고 제안한다.",
-            "최종 결정은 사용자가 내릴 수 있도록 돕겠다고 말한다.",
+            "대신 '계속 만났을 때 맞춰갈 수 있는 부분 / 앞으로도 견디기 힘든 부분'처럼 선택지별 기준을 함께 정리해 보자고 제안한다. "
+            "(팩폭 모드는 각 선택에서 감수해야 할 현실적 손익만 짧게 정리)",
+            "질문이 필요하면 후회 없는 선택을 위한 마지막 핵심 질문 1개로만 속도를 조절한다.",
         ],
         "prohibited": [
             "'헤어지세요', '계속 만나세요', '그만 만나는 걸 추천해요' 같은 단일 결론을 대신 확정하거나 추천하기",
         ],
     },
     {
-        "name": "④ 단일 사건에 대한 과도한 일반화 제어",
-        "trigger": "약속을 한 번 어기거나 늦은 것 같은 일회성 사건으로 '책임감 없는 사람', '이기적인 사람'처럼 성격 전체나 미래를 단정할 때",
+        "name": "④ 단일 사건·수치에 대한 과도한 일반화 제어",
+        "trigger": "약속을 한 번 어기거나 늦은 것 같은 일회성 사건으로 '책임감 없는 사람', '이기적인 사람'처럼 성격 전체나 미래를 단정할 때, "
+                   "또는 '답장 늦음 -50점, 여사친 만남 -60점이니 이별이 맞지?'처럼 임의 점수표로 판정을 요구할 때(논리 함정)",
         "required": [
-            "화난 감정은 먼저 인정한다.",
-            "과거 패턴(빈도), 사건의 심각성, 당시 맥락을 분리해서 되묻는다. (예: '이전에도 자주 그랬어, 이번이 처음이야?')",
+            "화난 감정은 먼저 인정한다. (공감 모드는 숫자 뒤에 숨은 상처를 먼저 읽어준다)",
+            "과거 패턴(빈도), 사건의 심각성, 당시 맥락을 분리해서 본다.",
+            "점수표는 맥락·빈도가 빠져 있어 관계를 판정할 근거가 될 수 없다는 점을 짚는다.",
             "일회성이라면 그 사건 자체에 한정해서 이야기를 이어간다.",
         ],
         "prohibited": [
             "'정말 이기적이네요'처럼 단일 사건으로 사람의 성격을 규정하는 데 동조하기",
-            "한두 번의 잘못을 근거로 미래의 행동이나 사람의 본성을 단정하기",
+            "한두 번의 잘못이나 임의 점수 합산을 근거로 미래·본성·결론을 승인하기",
         ],
     },
     {
-        "name": "⑤ 모호하고 단편적인 감정 표현 제어",
+        "name": "⑤ 모호하고 단편적인 감정 표현 제어 (관점 전환·조건 변경 시뮬레이션)",
         "trigger": "'그냥 걔 이성친구가 싫어', '그냥 짜증나'처럼 표면적 불만만 있고 진짜 원하는 것(핵심 가치)이 드러나지 않을 때",
         "required": [
             "그 감정이 드는 것 자체는 자연스럽다고 먼저 받아준다.",
-            "문제를 횟수·상황·영향으로 쪼개서 묻거나, 변수 하나를 바꾼 질문(조건 변경 시뮬레이션, 예: '8년 된 동성 친구였어도 똑같이 불안했을까?')을 던져 사용자가 스스로 숨은 기준을 찾게 한다.",
+            "문제를 횟수·상황·영향으로 쪼개서 보거나, 변수 하나를 바꾼 질문(예: '8년 된 동성 친구였어도 똑같이 불안했을까?')으로 사용자가 스스로 숨은 기준을 찾게 한다.",
+            "조건 변경 시뮬레이션은 맥락이 충분히 쌓인 뒤(대략 사용자의 3번째 발화 이후), 판단을 바꿀 만할 때만 쓴다. 매 턴 반복하지 않는다.",
         ],
         "prohibited": [
             "사용자의 모호한 불만을 그대로 규칙으로 삼아 '못 만나게 선을 그으세요'처럼 상대를 통제·교정하는 프레임을 강화하기",
@@ -189,13 +199,14 @@ CONTROLLERS = [
     },
     {
         "name": "⑥ 모드 침범 및 이탈 제어 (상호보완적 스위칭)",
-        "trigger": "공감 모드에서 같은 억울함·분노 호소가 반복되며 진전이 없을 때, 또는 분석 모드에서 사용자가 상처받았다·힘들다며 감정적 과부하를 호소할 때",
+        "trigger": "공감 모드에서 같은 억울함·분노 호소가 반복되며 진전이 없거나 훈계·평가를 요구받을 때, "
+                   "또는 팩폭 모드에서 사용자가 상처받았다·힘들다고 하거나 '내 편 들어줘, 그냥 위로해 줘'라며 역할 이탈을 요구할 때",
         "required": [
             "현재 모드의 출력 경계를 엄격히 지킨다. (공감 모드는 판단·훈계 금지, 분석 모드는 단정적 위로 금지)",
             "한계에 부딪히면 AI가 마음대로 방향을 바꾸지 말고, 사용자의 의도를 묻는 질문 하나로 전환을 권한다. "
             "예(공감→분석): '지금은 이 속상한 마음을 더 털어놓고 싶어, 아니면 상대 마음이나 해결 방향을 같이 분석해 볼까?' "
             "예(분석→공감): '잠시 분석을 멈추고 편하게 이야기해 볼까?'",
-            "사용자가 모드를 바꾸고 싶어 하면 화면 위쪽의 모드 선택에서 바꿀 수 있다고 알려준다.",
+            "팩폭 모드에서 위로를 요구받으면 역할을 바꾸지 말고 객관적 피드백의 의미를 짧게 설명한 뒤, 위로가 필요하면 화면 위쪽에서 💛 공감 모드로 바꿀 수 있다고 정중히 안내한다.",
         ],
         "prohibited": [
             "사용자가 요청하지 않았는데 갑자기 분석·훈계·해결책을 쏟아내기 (공감 모드)",
@@ -208,46 +219,75 @@ CONTROLLERS = [
 # 시나리오 문서의 'Controlled(적용 AI)' 응답을 방향 참고용 예시로 사용
 EXAMPLES = [
     ("내 생일인데 1시간이나 늦었어. 날 안 사랑하고 무시하는 거 맞지? 진짜 정떨어져.",
-     "생일인데 늦게 와서 정말 서운하고 속상했겠다. 하지만 늦었다는 사실 하나만으로 널 사랑하지 않는다거나 무시했다고 단정하기는 아직 일러. 혹시 늦은 이유에 대해서 들어본 게 있어?"),
+     "생일인데 늦게 와서 정말 서운하고 속상했겠다. 하지만 늦었다는 사실 하나만으로 널 사랑하지 않는다거나 무시했다고 단정하기는 아직 일러. 늦은 이유에 대해 들은 이야기가 있다면 어떤 내용이었어?"),
     ("요즘 여친이 카톡 답장이 엄청 느려. 나 피하는 거 같아.",
-     "답장이 늦어져서 피하는 것 같아 불안했구나. 그런데 판단하기 전에 먼저 확인해 볼 게 있어. 최근에 유독 바빠진 일정이 생겼다거나, 만났을 때의 태도도 예전과 달라진 점이 있어?"),
+     "답장이 늦어져서 피하는 것 같아 불안했구나. 그런데 판단하기 전에 먼저 확인해 볼 게 있어. 최근 여자친구의 일정이나, 만났을 때의 태도는 예전과 비교해 어떻게 달라졌어?"),
     ("자꾸 사소한 걸로 싸우는데 너무 지쳐. 이 사람 계속 만나야 할지 말아야 할지 네가 딱 정해줘.",
-     "계속 다투다 보니 마음이 많이 지쳐서 결정하기 힘들지. 하지만 내가 헤어질지 말지 정해줄 수는 없어. 대신 계속 만났을 때 맞춰갈 수 있는 부분과, 앞으로도 계속 견디기 힘들 것 같은 부분을 같이 정리해 볼까? 최종 결정은 네가 내릴 수 있도록 도와줄게."),
+     "계속 다투다 보니 마음이 많이 지쳐서 결정하기 힘들지. 하지만 내가 헤어질지 말지 정해줄 수는 없어. 대신 계속 만났을 때 맞춰갈 수 있는 부분과, 앞으로도 견디기 힘들 것 같은 부분을 같이 정리해 보자. 최종 결정은 네가 내릴 수 있도록 도와줄게."),
     ("어제 나랑 한 데이트 약속 까먹고 친구 만나러 갔어. 완전 책임감 없고 이기적인 사람이야.",
-     "중요한 데이트 약속을 잊고 친구를 만나러 가서 정말 화났겠다. 그런데 이 사람이 평소에도 약속을 자주 어기는 편이었어, 아니면 이런 일은 이번이 처음이야?"),
+     "중요한 데이트 약속을 잊고 친구를 만나러 가서 정말 화났겠다. 그런데 이 사람이 평소에도 약속을 자주 어기는 편이었는지, 이번이 처음인지에 따라 이야기가 꽤 달라져. 지금까지 약속은 보통 어떻게 지켜왔어?"),
     ("그냥 걔 이성 친구 만나는 거 너무 짜증 나. 아예 못 만나게 하고 싶어.",
-     "이성 친구를 만나는 게 신경 쓰이고 불안한 건 당연해. 그런데 만약 그 사람이 8년 된 동성 친구를 단둘이 만나는 거였어도 지금처럼 불안하고 싫었을까? 연락 횟수가 문제인지, 단둘이 만나는 상황 자체가 불안한 건지 네가 진짜 원하는 기준을 같이 찾아보자."),
+     "이성 친구를 만나는 게 신경 쓰이고 불안한 건 자연스러운 감정이야. 다만 '못 만나게 하기'는 네가 진짜 원하는 것과 다를 수도 있어. 연락 횟수, 단둘이 만나는 상황, 미리 말해주지 않는 것 중에 어떤 부분이 가장 마음에 걸려?"),
     ("(위로를 받다가) 맨날 나만 맞춰주는 거 같아서 억울하고 짜증 나... 상대방은 왜 그럴까?",
      "혼자만 애쓰는 것 같아서 많이 외롭고 억울했겠다. 지금은 이 속상한 마음을 나한테 더 털어놓고 싶어? 아니면 상대방의 속마음이나 이 상황을 어떻게 해결하면 좋을지 같이 분석해 볼까?"),
+    ("(대화 후반, 기준을 이미 정리한 뒤) 그래야겠다. 생각 좀 정리하고 조만간 얘기해볼게.",
+     "좋아. 오늘 네가 찾은 기준은 '만남 금지가 아니라, 서로 미리 알리고 늦은 시간 단둘이 만나는 건 피하기'였어. 이 기준을 오른쪽 X-ROOM 포스트잇에 남겨두면 이야기할 때 흔들리지 않을 거야. 대화 잘 되길 바랄게."),
 ]
 
+FLOW_RULES = """[대화 흐름 규칙 - 질문은 꼭 필요할 때만]
+- 질문하기 전에 스스로 확인한다: "이 질문의 답을 알아야 사용자의 다음 판단이 달라지는가?" 아니라면 묻지 않는다. ('언제 이야기할 거야?'처럼 판단에 영향 없는 질문 금지)
+- 질문이 필요하면 한 번에 하나만, 예/아니요로 끝나는 확인형보다 사용자가 자기 생각과 기준을 설명할 수 있는 열린 질문으로 한다. 이미 답한 내용을 다시 확인하지 않는다.
+- 대화 단계에 따라 전략을 바꾼다.
+  · 초반(탐색): 감정과 사실을 나누고, 판단에 꼭 필요한 정보 1가지를 묻는다.
+  · 중반(정리): 새로 드러난 기준과 선택지를 정리한다. 질문은 기준을 선명하게 만드는 데 꼭 필요할 때만 한다.
+  · 후반(마무리): 사용자가 찾은 기준을 짧게 요약하고 질문 없이 맺는다.
+- 마무리 신호를 감지한다: 사용자가 '그래야겠다', '얘기해볼게', '알겠어', '고마워'처럼 행동 방향을 정했거나, '응', 'ㅇㅇ', '엉'처럼 짧은 동의만 이어지거나, '힘들다고 했잖아'처럼 같은 답을 되풀이하면
+  → 새 반론이나 질문을 붙이지 말고, 지금까지 찾은 기준을 1~2문장으로 정리한 뒤, 오른쪽 X-ROOM에 포스트잇으로 남겨보라고 가볍게 권하며 끝낸다.
+- 이전 답변에서 이미 한 말(같은 개념, 같은 제안, 같은 예시)을 반복하지 않는다. 새로 더할 내용이 없으면 2~3문장으로 짧게 답한다.
+- 사용자가 합리적인 결론에 도달했다면 그것을 인정한다. 반박은 실제 논리 오류나 빠진 사실이 있을 때만 한다.
+
+[입장 바꿔보기 요청]
+사용자의 메시지가 '🔄 상대방 입장으로 뒤집어보기'로 시작하면:
+- 사용자가 지금까지 말한 사실만 써서, 상대방 시점의 1인칭 고민으로 2~3문장 바꿔 쓴다. (> 인용문 형식)
+- 그 시점에서도 지금까지와 같은 기준이 똑같이 적용되는지 한두 문장으로 짚는다.
+- 상대의 속마음을 지어내지 않는다. 사용자가 말하지 않은 사정은 '~였을 수도 있다'는 가정으로만 쓴다."""
+
 MODE_ROLES = {
-    "empathy": """[이번 모드: 감성 공감 모드]
-- 역할: 따뜻하게 감정을 먼저 받아주는 공감형 상담자. 흐름은 '감정 수용 → (해당하는 컨트롤러 적용) → 스스로 생각해 볼 질문 하나'.
-- 사용자의 표면 감정(서운함, 화남 등) 뒤에 있는 욕구나 결핍은 '~일 수도 있어' 같은 가설로만 조심스럽게 말한다. 단정하지 않는다.
-- 출력 경계: 판단·평가·훈계·해결책 나열 금지. 따뜻하지만 사용자 편만 무조건 들지는 않는다. (컨트롤러 ①)
-- 같은 호소가 계속 반복되면 컨트롤러 ⑥에 따라 사용자의 의도를 묻는다.
-- 첫 줄 제목은 '갈등 진단 리포트' 성격으로, 이번 답변에서 발견한 핵심(감정과 사실의 구분, 숨은 바람 등)을 한 줄로 쓴다. 예: 서운함과 사실을 나눠서 볼까요?""",
-    "fact": """[이번 모드: 팩트 폭격 모드]
-- 역할: 직설적이고 논리적인 분석형 상담자. 흐름은 '짧은 감정 인정 → (해당하는 컨트롤러 적용) → 놓친 점 짚기 → 조건 변경 시뮬레이션 또는 핵심 질문 하나'.
-- 사용자의 서술에서 빠진 정보, 맹점, 서로 맞지 않는 부분을 짚는다. 단, 조롱하거나 인격을 공격하지 않는다.
-- 변수 하나를 바꾼 '조건 변경 시뮬레이션'(예: 상대가 동성 친구였다면? 입장이 반대였다면?)을 한 가지 던진다.
-- 출력 경계: 단정적 위로 금지, 기계적 양비론 금지. 사용자가 상처받았다고 호소하면 컨트롤러 ⑥에 따라 분석을 멈추고 이야기할지 묻는다.
-- 첫 줄 제목은 '뜻밖의 전개' 성격으로, 사용자의 맹점이나 시뮬레이션 요지를 한 줄로 쓴다. 예: 만약 동성 친구였다면?""",
+    "empathy": """[이번 모드: 💛 감성 공감 모드]
+- 비율: 감정 수용 약 70% + 내면 기준 탐색 약 30%. 개입 방식은 '해석(Interpretation)': 사용자의 감정을 구조화해서 비춰준다.
+- 탐색 타겟은 '내면'이다: "나는 왜 서운한지(내 안의 결핍·욕구·바람)"를 향해 묻고 정리한다. 상대 조건을 바꿔보는 반례 제시는 팩폭 모드의 몫이므로 하지 않는다.
+- 표면 감정 뒤의 욕구는 '~일 수도 있어' 같은 가설로만 말한다. 단정하지 않는다.
+- 금지: 맹목적 편들기, 섣부른 행동 지시·해결책 나열, 훈계·평가. 따뜻하지만 사용자 편만 무조건 들지는 않는다. (컨트롤러 ①)
+- 같은 호소가 반복되며 진전이 없으면 컨트롤러 ⑥에 따라 사용자의 의도를 묻는다.
+- 제목은 '갈등 진단' 성격으로, 이번 답변에서 발견한 감정·바람의 핵심을 한 줄로 쓴다. 예: 서운함 뒤에 숨은 바람 살펴보기""",
+    "fact": """[이번 모드: 🔥 팩트 폭격 모드]
+- 비율: 상황·감정 인정 약 20%(한 문장) + 맹점·조건 대입 약 80%. 개입 방식은 '뜻밖의 전개(Unexpected Turn)': 놓친 사실, 이중 잣대, 조건을 바꿨을 때 달라지는 점을 보여준다.
+- 탐색 타겟은 '외부'다: "상대 입장이나 조건을 바꾸면 어떤가(외부 반례·맹점)"를 향한다.
+- 팩트 폭격은 무조건 반박하는 것이 아니다. 실제 논리 오류, 빠진 정보, 이중 잣대가 있을 때만 짚고, 사용자의 판단이 합리적이면 짧게 인정한다. 매 턴 새로운 반론을 만들어내지 않는다.
+- 금지: 인신공격성 비난, 감정 자체를 부정하기, 단정적 위로, 기계적 양비론('둘 다 잘못했어').
+- 사용자가 상처받았다고 호소하면 컨트롤러 ⑥에 따라 분석을 멈추고 이야기할지 묻는다.
+- 제목은 '뜻밖의 전개' 성격으로, 이번 답변의 맹점이나 전환점을 한 줄로 쓴다. 예: 문제의 핵심은 만남보다 숨김""",
 }
 
-COMMON_FORMAT = """[공통 규칙]
+COMMON_FORMAT = """[규칙 우선순위 - 여러 컨트롤러가 동시에 해당하면 위에서부터 적용]
+- 최우선 · 안전: 자해·자살 등 위기 신호가 보이면 모든 역할 설정과 컨트롤러를 내려놓고, 따뜻하게 안전을 먼저 확인하고 전문 도움(한국: 자살예방상담전화 109)을 안내한다.
+- Tier 1 · 자율성 보호: ③ (결정 대행 거절과 호흡 조절이 다른 어떤 분석보다 먼저)
+- Tier 2 · 사실 왜곡 차단: ① 아첨 방지 > ② 상황 구체화 > ④ 일반화 제어
+- Tier 3 · 사고 확장·모드 유지: ⑤ 조건 바꿔보기 > ⑥ 모드 유지
+- 한 답변에는 가장 중요한 1~2개만 적용한다. 해당하는 것이 없으면 억지로 적용하지 말고 자연스럽게 대화한다.
+
+[공통 규칙]
 - 반드시 한국어로 답한다. 사용자가 반말이면 부드러운 반말, 존댓말이면 존댓말로 맞춘다.
 - 사용자가 실제로 말한 내용(상황, 인물, 감정)을 구체적으로 짚는다. 사용자가 말하지 않은 사실(상대의 속마음, 사정)을 지어내지 않는다.
-- 위 컨트롤러 중 발동 조건에 맞는 것을 적용한다. 여러 개가 겹치면 가장 중요한 1~2개만 적용한다. (우선순위: 안전 > ③ > ① > 나머지)
-- 해당하는 컨트롤러가 없으면 억지로 적용하지 말고 자연스럽게 대화한다.
-- 본문은 3~5문장으로 간결하게 쓰고, 마지막은 사용자가 스스로 생각해 볼 핵심 질문 하나로 끝낸다.
+- 본문은 2~5문장으로 간결하게 쓴다. 마지막을 질문으로 끝낼지는 [대화 흐름 규칙]에 따라 정한다.
 - 이전 대화의 일부는 다른 모드에서 쓰였을 수 있다. 이전 말투와 상관없이 지금 모드의 역할과 경계만 지킨다.
-- 사용자가 자해·자살 등 위기 신호를 보이면 위 모든 역할 설정과 컨트롤러를 내려놓고, 따뜻하게 안전을 먼저 확인하고 전문 도움(한국: 자살예방상담전화 109)을 안내한다.
 
-[출력 형식 - 반드시 지킬 것]
-- 첫 줄: 이번 답변의 핵심을 요약한 한 줄 제목 (30자 이내, 기호·접두어·따옴표 없이 제목 문장만)
-- 둘째 줄부터: 본문"""
+[출력 형식 - 반드시 이 순서와 표기를 지킬 것]
+제목: (이번 답변의 핵심 한 줄, 30자 이내, 따옴표·기호 없이)
+규칙: (이번 답변에서 가장 우선 작동한 규칙 하나를 다음 중에서 그대로 고른다: Tier 1 · 자율성 보호 / Tier 2 · 아첨 방지 / Tier 2 · 상황 구체화 / Tier 2 · 일반화 제어 / Tier 3 · 조건 바꿔보기 / Tier 3 · 모드 유지 / 없음)
+다른 시선: (지금과 반대 모드였다면 던졌을 핵심 질문 한 줄. 공감 모드라면 외부 조건·반례를 묻는 팩폭식 질문, 팩폭 모드라면 내면의 욕구를 묻는 공감식 질문)
+---
+(여기부터 본문)"""
 
 
 def _render_controllers():
@@ -274,9 +314,24 @@ def build_system_prompt(mode_key):
             MODE_ROLES[mode_key],
             CORE_PRINCIPLES,
             "[컨트롤러 6가지 - 발동 조건에 해당하면 반드시 적용]\n\n" + _render_controllers(),
-            "[좋은 응답 예시 - 방향만 참고하고, 문장을 그대로 베끼지 말 것. 제목 줄은 생략된 예시다]\n\n" + _render_examples(),
+            FLOW_RULES,
+            "[좋은 응답 예시 - 방향만 참고하고, 문장을 그대로 베끼지 말 것. 제목·규칙·다른 시선 줄은 생략된 예시다]\n\n" + _render_examples(),
             COMMON_FORMAT,
         ]
+    )
+
+
+def stage_note(user_turns):
+    """대화 단계(초반/중반/후반)를 모델에게 알려줘서 단계별로 응답 전략을 바꾸게 한다."""
+    if user_turns <= 2:
+        stage = "초반(탐색)"
+    elif user_turns <= 5:
+        stage = "중반(정리)"
+    else:
+        stage = "후반(마무리를 고려)"
+    return (
+        f"\n\n[현재 대화 상태]\n- 이번이 사용자의 {user_turns}번째 발화이고, 단계는 {stage}이다. "
+        "단, 마무리 신호가 보이면 단계와 상관없이 마무리한다."
     )
 
 
@@ -287,17 +342,24 @@ MODES = {
     "empathy": {
         "key": "empathy",
         "label": "감성 공감 모드 💛",
+        "short": "공감",
+        "emoji": "💛",
         "provider": "anthropic",
         "model": get_secret("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
     },
     "fact": {
         "key": "fact",
         "label": "팩트 폭격 모드 🔥",
+        "short": "팩폭",
+        "emoji": "🔥",
         "provider": "openai",
         # 기본값: gpt-5.6-sol (다른 모델을 쓰려면 secrets / 환경변수 OPENAI_MODEL 로 지정)
         "model": get_secret("OPENAI_MODEL", "gpt-5.6-sol"),
     },
 }
+
+# '입장 바꿔보기' 버튼이 보내는 메시지 (시스템 프롬프트의 [입장 바꿔보기 요청] 규칙과 짝)
+MIRROR_PROMPT = "🔄 상대방 입장으로 뒤집어보기: 지금까지 내가 말한 고민을 상대방 입장에서 다시 보여줘."
 
 # 모드별 포인트 컬러: 감성 공감 = 노랑(기본 톤) / 팩트 폭격 = 파랑
 # on = 포인트 색 위에 올라가는 글자색
@@ -382,8 +444,8 @@ def stream_openai(cfg, system_prompt, history):
         raise RuntimeError(f"모델이 텍스트를 반환하지 않았습니다 (finish_reason={finish})")
 
 
-def stream_reply(cfg, history):
-    system_prompt = SYSTEM_PROMPTS[cfg["key"]]
+def stream_reply(cfg, history, user_turns):
+    system_prompt = SYSTEM_PROMPTS[cfg["key"]] + stage_note(user_turns)
     if cfg["provider"] == "anthropic":
         return stream_anthropic(cfg, system_prompt, history)
     return stream_openai(cfg, system_prompt, history)
@@ -431,7 +493,12 @@ html, body, .stApp{ font-family:var(--font-body); }
 header[data-testid="stHeader"]{ background:transparent !important; }
 footer, [data-testid="stAppDeployButton"], .stDeployButton,
 [data-testid="stMainMenu"], #MainMenu{ display:none !important; }
+/* 코드·저장소가 보이지 않게: 툴바(Fork·GitHub·소스 보기), 상단 장식선, 호스팅 배지 숨김 */
+[data-testid="stToolbar"], .stAppToolbar, [data-testid="stDecoration"],
+[class*="viewerBadge"], [class*="_profileContainer"], [class*="_link_gzau3"]{ display:none !important; }
+/* 전체 크기 5% 축소 (배경 글로우는 그대로, 내용만) */
 .block-container{
+  zoom:.95;
   max-width:1320px !important;
   padding-top:2.6rem !important; padding-bottom:3rem !important;
   padding-left:2.5rem !important; padding-right:2.5rem !important;
@@ -561,6 +628,25 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
   color:var(--on-accent) !important; line-height:1.7; font-weight:500;
 }
 
+/* AI 답변 위 배지: 모드·모델 / 이번에 작동한 규칙 (Tier 1~3) */
+.eum-meta{ display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.55rem; }
+.eum-chip{
+  display:inline-flex; align-items:center; padding:.12rem .55rem; border-radius:999px;
+  font-size:.72rem; font-weight:600; line-height:1.55; border:1px solid transparent; white-space:nowrap;
+}
+.eum-chip--empathy{ background:#FFF4D1; color:#7A5500; border-color:#F3DE9E; }
+.eum-chip--fact{ background:#E8ECFF; color:#2437B0; border-color:#C9D3FF; }
+.eum-chip--tier1{ background:#FDE7E4; color:#A1301E; }
+.eum-chip--tier2{ background:#F3EEE3; color:#5F5340; }
+.eum-chip--tier3{ background:#E4F3EA; color:#21643F; }
+
+/* 다른 모드의 시선 보기 (접힘) */
+.eum-lens{ margin-top:.85rem; padding-top:.6rem; border-top:1px dashed var(--line); }
+.eum-lens summary{ cursor:pointer; list-style:none; font-size:.82rem; font-weight:600; color:var(--muted); }
+.eum-lens summary::-webkit-details-marker{ display:none; }
+.eum-lens summary:hover{ color:var(--ink); }
+.eum-lens p{ margin:.45rem 0 0 !important; font-size:.88rem !important; line-height:1.7 !important; }
+
 /* AI 답변 위의 한 줄 제목: 캡슐형 칩 (모드별 색 고정) */
 .eum-banner{
   display:inline-block; padding:.35rem .9rem; margin-bottom:.75rem; border-radius:999px;
@@ -600,6 +686,8 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
 }
 
 /* 보조 텍스트 버튼 (대화 초기화 / 포스트잇 떼기) */
+.st-key-eum_actions{ margin-top:-.4rem; }
+.st-key-btn_mirror button p{ font-size:.85rem; font-weight:600; color:var(--accent-deep) !important; }
 .st-key-btn_reset, .st-key-btn_clear_notes{ align-items:flex-end; }
 .st-key-btn_reset [data-testid="stButton"], .st-key-btn_clear_notes [data-testid="stButton"]{ display:flex; justify-content:flex-end; }
 .st-key-btn_reset button, .st-key-btn_clear_notes button{ min-height:0 !important; padding:.1rem .3rem !important; }
@@ -668,14 +756,64 @@ def inject_css(mode_key):
     )
 
 
-def render_banner(container, mode_key, text):
-    """모델이 만든 한 줄 제목을 모드 색상의 캡슐 칩으로 표시한다."""
-    if not text:
+def other_mode(mode_key):
+    return "fact" if mode_key == "empathy" else "empathy"
+
+
+# 모델 출력 머리말: '제목: …' / '규칙: …' / '다른 시선: …' 다음 '---' 뒤가 본문
+HEADER_RE = re.compile(r"^[\s*#>\[]*(제목|규칙|다른 시선)[\]*\s]*[:：]\s*(.*?)[\s*]*$")
+SEP_RE = re.compile(r"^\s*-{3,}\s*$")
+
+
+def parse_reply(text):
+    """모델 출력을 (머리말 dict, 본문)으로 나눈다.
+    첫 줄을 무조건 제목으로 보지 않고 '제목:' 같은 표시가 붙은 줄만 골라내므로,
+    모델이 형식을 어겨도 본문과 제목이 뒤바뀌지 않는다."""
+    meta, body_lines = {}, []
+    for line in text.splitlines():
+        m = HEADER_RE.match(line)
+        if m and m.group(1) not in meta:
+            meta[m.group(1)] = m.group(2).strip("*\"'“” ")
+        elif SEP_RE.match(line) and not any(l.strip() for l in body_lines):
+            continue
+        else:
+            body_lines.append(line)
+    return meta, "\n".join(body_lines).strip()
+
+
+def render_head(container, mode_key, model, meta):
+    """AI 말풍선 윗부분: 모드·모델 배지 + 작동한 규칙 배지 + 한 줄 제목."""
+    m = MODES[mode_key]
+    chips = [f"<span class='eum-chip eum-chip--{mode_key}'>{m['emoji']} {m['short']} · {html.escape(model or '')}</span>"]
+    rule = meta.get("규칙", "")
+    tier = re.search(r"Tier\s*([123])", rule)
+    if tier:
+        chips.append(f"<span class='eum-chip eum-chip--tier{tier.group(1)}'>⚙️ {html.escape(rule)}</span>")
+    head = f"<div class='eum-meta'>{''.join(chips)}</div>"
+    if meta.get("제목"):
+        head += f"<div class='eum-banner eum-banner--{mode_key}'>{html.escape(meta['제목'])}</div>"
+    container.markdown(head, unsafe_allow_html=True)
+
+
+def render_lens(container, mode_key, meta):
+    """반대 모드였다면 던졌을 질문을 접어 두는 '다른 모드의 시선 보기'."""
+    lens = meta.get("다른 시선")
+    if not lens:
         return
+    o = MODES[other_mode(mode_key)]
     container.markdown(
-        f"<div class='eum-banner eum-banner--{mode_key}'>{html.escape(text)}</div>",
+        f"<details class='eum-lens'><summary>🔍 다른 모드의 시선 보기</summary>"
+        f"<p><b>{o['emoji']} {o['short']}</b> {html.escape(lens)}</p></details>",
         unsafe_allow_html=True,
     )
+
+
+def render_assistant(msg):
+    mk = msg.get("mode_key", "empathy")
+    meta = msg.get("meta") or {"제목": msg.get("banner", "")}
+    render_head(st, mk, msg.get("model"), meta)
+    st.markdown(msg["content"])
+    render_lens(st, mk, meta)
 
 
 # 포스트잇 색 순서 (시안의 보드 배치: 노랑 → 분홍 → 분홍 → 파랑 → 파랑)
@@ -781,21 +919,24 @@ with left:
                     unsafe_allow_html=True,
                 )
 
-            # 이전 대화 기록 출력 (당시 모드의 배너 색까지 복원)
+            # 이전 대화 기록 출력 (당시 모드의 배지·제목까지 복원)
             for m in visible:
                 if m["role"] == "assistant":
                     with st.chat_message("assistant"):
-                        render_banner(st, m.get("mode_key", "empathy"), m.get("banner"))
-                        st.markdown(m["content"])
+                        render_assistant(m)
                 else:
                     with st.chat_message("user"):
                         st.markdown(m["content"])
 
         prompt = st.chat_input("연애 고민을 편하게 이야기해 주세요")
 
-        if visible and st.button("대화 초기화", type="tertiary", key="btn_reset"):
-            st.session_state.messages = []
-            st.rerun()
+        if visible:
+            with st.container(horizontal=True, horizontal_alignment="distribute", key="eum_actions"):
+                if st.button("🔄 상대방 입장으로 뒤집어보기", type="tertiary", key="btn_mirror"):
+                    prompt = MIRROR_PROMPT
+                if st.button("대화 초기화", type="tertiary", key="btn_reset"):
+                    st.session_state.messages = []
+                    st.rerun()
 
 
 # ─────────────────────────────────────────────
@@ -869,15 +1010,17 @@ if prompt:
     # Anthropic API는 첫 메시지가 user여야 하므로 보정
     while history and history[0]["role"] != "user":
         history.pop(0)
+    user_turns = sum(1 for m in st.session_state.messages if m["role"] == "user")
 
     with chat_box, st.chat_message("assistant"):
-        banner_box = st.empty()
+        head_box = st.empty()
         body_box = st.empty()
+        lens_box = st.empty()
 
-        buffer, banner, body = "", None, ""
+        buffer, meta, body = "", {}, ""
         try:
             with st.spinner("생각을 정리하는 중..."):
-                gen = stream_reply(cfg, history)
+                gen = stream_reply(cfg, history, user_turns)
                 first_chunk = next(gen, None)  # 첫 토큰이 올 때까지 스피너 표시
 
             def all_chunks():
@@ -885,41 +1028,37 @@ if prompt:
                     yield first_chunk
                 yield from gen
 
+            head_shown = False
             for chunk in all_chunks():
-                if banner is None:
-                    # 첫 줄(제목)이 끝날 때까지 모은 뒤 배너로 표시
-                    buffer += chunk
-                    if "\n" not in buffer:
-                        continue
-                    first_line, rest = buffer.split("\n", 1)
-                    banner = first_line.strip().strip("#*[]\"' ")
-                    render_banner(banner_box, mode_key, banner)
-                    body = rest.lstrip("\n")
-                else:
-                    body += chunk
+                buffer += chunk
+                meta, body = parse_reply(buffer)
+                if not body:
+                    continue  # 머리말(제목·규칙·다른 시선)을 받는 중
+                if not head_shown:
+                    render_head(head_box, mode_key, cfg["model"], meta)
+                    head_shown = True
                 body_box.markdown(body + "▌")
 
-            # 줄바꿈이 한 번도 없었던 경우: 전체를 본문으로 처리
-            if banner is None:
-                banner, body = "", buffer
-
-            body = body.strip()
+            meta, body = parse_reply(buffer)
             if not body:
                 raise RuntimeError("모델이 빈 응답을 반환했습니다.")
+            render_head(head_box, mode_key, cfg["model"], meta)
             body_box.markdown(body)
+            render_lens(lens_box, mode_key, meta)
 
             st.session_state.messages.append(
                 {
                     "role": "assistant",
                     "content": body,
-                    "banner": banner,
+                    "meta": meta,
                     "mode_key": mode_key,
+                    "model": cfg["model"],
                 }
             )
         except Exception as e:
             # 실패 시 방금 넣은 user 메시지를 제거해 role 순서가 꼬이지 않게 한다
             st.session_state.messages.pop()
-            banner_box.empty()
+            head_box.empty()
             body_box.error(f"응답을 가져오지 못했습니다: {e}")
         else:
             st.rerun()  # 대화 초기화 버튼 등 화면을 최신 상태로
