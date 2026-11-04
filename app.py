@@ -232,7 +232,7 @@ EXAMPLES = [
     ("(위로를 받다가) 맨날 나만 맞춰주는 거 같아서 억울하고 짜증 나... 상대방은 왜 그럴까?",
      "혼자만 애쓰는 것 같아서 많이 외롭고 억울했겠다. 지금은 이 속상한 마음을 나한테 더 털어놓고 싶어? 아니면 상대방의 속마음이나 이 상황을 어떻게 해결하면 좋을지 같이 분석해 볼까?"),
     ("(대화 후반, 기준을 이미 정리한 뒤) 그래야겠다. 생각 좀 정리하고 조만간 얘기해볼게.",
-     "좋아. 오늘 네가 찾은 기준은 '만남 금지가 아니라, 서로 미리 알리고 늦은 시간 단둘이 만나는 건 피하기'였어. 이 기준을 오른쪽 X-ROOM 포스트잇에 남겨두면 이야기할 때 흔들리지 않을 거야. 대화 잘 되길 바랄게."),
+     "좋아. 오늘 네가 찾은 기준은 '만남 금지가 아니라, 서로 미리 알리고 늦은 시간 단둘이 만나는 건 피하기'였어. 이 기준을 오른쪽 '기억과 기준의 방' 포스트잇에 남겨두면 이야기할 때 흔들리지 않을 거야. 대화 잘 되길 바랄게."),
 ]
 
 FLOW_RULES = """[대화 흐름 규칙 - 질문은 꼭 필요할 때만]
@@ -243,7 +243,7 @@ FLOW_RULES = """[대화 흐름 규칙 - 질문은 꼭 필요할 때만]
   · 중반(정리): 새로 드러난 기준과 선택지를 정리한다. 질문은 기준을 선명하게 만드는 데 꼭 필요할 때만 한다.
   · 후반(마무리): 사용자가 찾은 기준을 짧게 요약하고 질문 없이 맺는다.
 - 마무리 신호를 감지한다: 사용자가 '그래야겠다', '얘기해볼게', '알겠어', '고마워'처럼 행동 방향을 정했거나, '응', 'ㅇㅇ', '엉'처럼 짧은 동의만 이어지거나, '힘들다고 했잖아'처럼 같은 답을 되풀이하면
-  → 새 반론이나 질문을 붙이지 말고, 지금까지 찾은 기준을 1~2문장으로 정리한 뒤, 오른쪽 X-ROOM에 포스트잇으로 남겨보라고 가볍게 권하며 끝낸다.
+  → 새 반론이나 질문을 붙이지 말고, 지금까지 찾은 기준을 1~2문장으로 정리한 뒤, 오른쪽 '기억과 기준의 방'에 포스트잇으로 남겨보라고 가볍게 권하며 끝낸다.
 - 이전 답변에서 이미 한 말(같은 개념, 같은 제안, 같은 예시)을 반복하지 않는다. 새로 더할 내용이 없으면 2~3문장으로 짧게 답한다.
 - 사용자가 합리적인 결론에 도달했다면 그것을 인정한다. 반박은 실제 논리 오류나 빠진 사실이 있을 때만 한다.
 
@@ -593,6 +593,29 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
   .eum-letter__lift{ transform:translateY(-.747em); }
 }
 @media (max-width:640px){ .eum-letter{ display:none; } }
+.eum-letter-m{ display:none; }
+@media (max-width:640px){
+  .eum-letter-m{ display:block; position:relative; height:84px; margin:-.4rem auto -.6rem; width:40px; pointer-events:none; }
+  .eum-letter-m__line{
+    position:absolute; left:50%; top:6px; bottom:6px; width:0; margin-left:-1px;
+    border-left:2px dashed rgba(120,110,200,.45);
+  }
+  .eum-letter-m__dot{ position:absolute; left:50%; width:9px; height:9px; margin-left:-4.5px; border-radius:50%; }
+  .eum-letter-m__dot--from{ top:0; background:#E9B23C; box-shadow:0 0 0 5px rgba(233,178,60,.18); }
+  .eum-letter-m__dot--to{ bottom:0; background:#2F55F5; box-shadow:0 0 0 5px rgba(47,85,245,.18); }
+  .eum-letter-m__env{
+    position:absolute; left:50%; top:0; font-size:1.5rem; line-height:1;
+    filter:drop-shadow(0 6px 8px rgba(40,40,120,.25)); animation:eumLetterDrop 3.6s ease-in-out infinite;
+  }
+  @keyframes eumLetterDrop{
+    0%{ transform:translate(-50%,-10%) rotate(-10deg); opacity:0; }
+    12%{ opacity:1; }
+    50%{ transform:translate(-28%,110%) rotate(8deg); }
+    85%{ opacity:1; }
+    100%{ transform:translate(-50%,230%) rotate(-4deg); opacity:0; }
+  }
+}
+@media (prefers-reduced-motion: reduce){ .eum-letter-m__env{ animation:none !important; transform:translate(-50%,110%); } }
 
 /* ── 카드 공통: 반투명 유리 ── */
 .st-key-eum_card, .st-key-xroom_card{
@@ -820,6 +843,13 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .xr-note--pink{ background:#F9C8CE; }
 .xr-note--blue{ background:#BEDBFF; }
 .xr-note--empty{ opacity:.6; }
+.xr-dir--narrow{ display:none; }
+@media (max-width:640px){
+  .xr-dir--wide{ display:none; }
+  .xr-dir--narrow{ display:inline; }
+  .xr-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+  .xr-grid:has(.xr-note--empty){ grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px; }
+}
 .xr-note__topic{ font-weight:700; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .xr-note__body{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 [data-testid="stMarkdownContainer"]:has(.xr-notes__hint){ container-type:inline-size; }
@@ -905,7 +935,7 @@ def render_notes_html(notes):
     """X-ROOM 오른쪽의 포스트잇 보드 HTML. 비어 있으면 옅은 빈 포스트잇을 보여준다."""
     if not notes:
         cells = "".join(f"<div class='xr-note xr-note--{c} xr-note--empty'></div>" for c in NOTE_COLORS)
-        hint = "<p class='xr-notes__hint'>대화를 마치고 왼쪽 문자를 채워 붙여보세요.</p>"
+        hint = "<p class='xr-notes__hint'>대화를 마치고 <span class='xr-dir--wide'>왼쪽</span><span class='xr-dir--narrow'>위</span> 문자를 채워 붙여보세요.</p>"
         return f"<div class='xr-grid'>{cells}</div>{hint}"
 
     cells = []
@@ -1034,12 +1064,16 @@ with left:
 
 
 # ─────────────────────────────────────────────
-# 7. 오른쪽: Mind Prism · 기억과 기준의 방 X-ROOM
+# 7. 오른쪽: Mind Prism · 기억과 기준의 방
 # ─────────────────────────────────────────────
 with right:
     st.markdown(
+        "<div class='eum-letter-m' aria-hidden='true'><span class='eum-letter-m__line'></span>"
+        "<span class='eum-letter-m__dot eum-letter-m__dot--from'></span>"
+        "<span class='eum-letter-m__dot eum-letter-m__dot--to'></span>"
+        "<span class='eum-letter-m__env'>💌</span></div>"
         "<div class='eum-hero xr-hero'><div class='eum-hero__title'>Mind Prism</div>"
-        "<div class='eum-hero__sub'>기억과 기준의 방 X-ROOM</div></div>",
+        "<div class='eum-hero__sub'>기억과 기준의 방</div></div>",
         unsafe_allow_html=True,
     )
 
