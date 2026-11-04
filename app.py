@@ -775,7 +775,7 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 }
 .xr-head{ background:#F6D774; padding:.7rem 1.4rem 1.15rem; }
 .xr-handle{ display:block; width:68px; height:7px; border-radius:7px; background:rgba(90,70,20,.18); margin:0 auto .95rem; }
-.xr-head__title{ font-weight:800; font-size:1.18rem; color:var(--ink); word-break:keep-all; }
+.xr-head__title{ font-weight:800; font-size:1.18rem; color:var(--ink); word-break:keep-all; text-align:center; }
 .st-key-xr_paper [data-testid="stForm"]{ padding:1.1rem 1.4rem 1.4rem !important; border:none !important; }
 /* 초안 채우기: 오른쪽 보드 아래, 유리 질감의 넓은 버튼 */
 .st-key-btn_xr_draft{ margin-top:.4rem; }
@@ -822,7 +822,9 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .xr-note--empty{ opacity:.6; }
 .xr-note__topic{ font-weight:700; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .xr-note__body{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.xr-notes__hint{ margin:.9rem 0 0; font-size:.8rem; line-height:1.6; color:#1C2557; word-break:keep-all; }
+[data-testid="stMarkdownContainer"]:has(.xr-notes__hint){ container-type:inline-size; }
+/* 안내 문구는 칸 너비에 맞춰 글씨가 줄어들어 항상 한 줄에 들어간다 */
+[data-testid="stMarkdownContainer"] p.xr-notes__hint{ margin:.9rem 0 0; font-size:clamp(.55rem,6cqw,.8rem); line-height:1.6; color:#1C2557; white-space:nowrap; letter-spacing:-.01em; }
 """
 
 
