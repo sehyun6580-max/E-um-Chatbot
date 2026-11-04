@@ -538,6 +538,9 @@ footer, [data-testid="stAppDeployButton"], .stDeployButton,
   font-family:var(--font-display); font-weight:800; font-size:clamp(2.8rem, 5.4vw, 4.6rem);
   font-variation-settings:"opsz" 48, "SOFT" 0; line-height:1.1; letter-spacing:-.015em; white-space:nowrap;
 }
+.xr-hero .eum-hero__title{
+  font-size:clamp(2.02rem, 3.89vw, 3.31rem); font-weight:600; line-height:1.528; opacity:.92;
+}
 .eum-hero__title .ko{ font-family:"Noto Serif KR", serif; font-weight:900; letter-spacing:-.04em; }
 .eum-hero__title .en{ margin-left:.22em; }
 .eum-hero__sub{
@@ -550,11 +553,12 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .eum-letter{ position:relative; height:0; pointer-events:none; }
 .eum-letter__stage{
   /* 타이틀과 같은 글자 크기를 써서 em 단위로 두 타이틀 사이 간격을 계산한다.
-     두 컬럼(gap 4rem)의 가운데 = 50%, 타이틀 폭: 이음 E-um ≈ 4.66em, Mind Prism ≈ 5.63em
-     → 간격의 중심 = 50% - (5.63-4.66)/4 em, 간격의 폭 = 50% + 2rem - (4.66+5.63)/2 em */
+     컬럼 6:4(gap 4rem, 각 컬럼 폭 = 비율×100% - 2rem), 타이틀 폭: 이음 E-um ≈ 4.66em,
+     Mind Prism(0.72배·굵기 600) ≈ 3.835em
+     → 간격의 중심 = 55% + (4.66-3.835)/4 em, 간격의 폭 = 50% + 2rem - (4.66+3.835)/2 em */
   position:absolute; font-size:clamp(2.8rem, 5.4vw, 4.6rem);
-  left:calc(50% - .241em); transform:translateX(-50%);
-  width:calc(50% + 2rem - 5.74em); height:1.6em; top:calc(-.383em);
+  left:calc(55% + .206em); transform:translateX(-50%);
+  width:calc(50% + 2rem - 4.248em); height:1.6em; top:calc(-.383em);
 }
 .eum-letter__path{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
 .eum-letter__path path{
@@ -628,6 +632,7 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
   gap:1.1rem !important;
 }
 .st-key-xroom_card{
+  padding:2.4rem 2.4rem 2rem !important;
   background:linear-gradient(160deg, rgba(160,182,250,.78), rgba(118,146,246,.72));
   border-color:rgba(255,255,255,.55);
   box-shadow:0 0 110px 20px rgba(47,85,245,.35);
@@ -828,9 +833,10 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .st-key-xr_paper [data-testid="stFormSubmitButton"] button:hover{ background:#2F55F5 !important; transform:translateY(-1px); }
 
 /* ── X-ROOM: 작성한 포스트잇 보드 ── */
+.st-key-xr_board{ margin-top:1.6rem; }
 .xr-notes__label{ font-weight:700; font-size:.9rem; color:#141A40; margin:.15rem 0 .9rem; }
 .xr-grid{
-  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px;
+  display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px;
   max-height:520px; overflow-y:auto; padding:2px 4px 10px 2px;
 }
 .xr-note{
@@ -842,13 +848,15 @@ div[data-testid="stElementContainer"]:has(.eum-letter){ margin-bottom:-1rem; z-i
 .xr-note--yellow{ background:#FFEE9A; }
 .xr-note--pink{ background:#F9C8CE; }
 .xr-note--blue{ background:#BEDBFF; }
-.xr-note--empty{ opacity:.6; }
-.xr-dir--narrow{ display:none; }
+.xr-note--empty{
+  background:rgba(255,255,255,.22) !important; box-shadow:none;
+  border:1.5px dashed rgba(70,80,130,.32); justify-content:center; align-items:center; text-align:center;
+}
+.xr-note__placeholder{ font-size:.78rem; line-height:1.5; color:rgba(28,37,87,.5); font-weight:600; }
 @media (max-width:640px){
-  .xr-dir--wide{ display:none; }
-  .xr-dir--narrow{ display:inline; }
   .xr-grid{ grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
   .xr-grid:has(.xr-note--empty){ grid-template-columns:repeat(5, minmax(0, 1fr)); gap:8px; }
+  .xr-note__placeholder{ display:none; }
 }
 .xr-note__topic{ font-weight:700; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .xr-note__body{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
@@ -934,8 +942,13 @@ NOTE_COLORS = ("yellow", "pink", "pink", "blue", "blue")
 def render_notes_html(notes):
     """X-ROOM 오른쪽의 포스트잇 보드 HTML. 비어 있으면 옅은 빈 포스트잇을 보여준다."""
     if not notes:
-        cells = "".join(f"<div class='xr-note xr-note--{c} xr-note--empty'></div>" for c in NOTE_COLORS)
-        hint = "<p class='xr-notes__hint'>대화를 마치고 <span class='xr-dir--wide'>왼쪽</span><span class='xr-dir--narrow'>위</span> 문자를 채워 붙여보세요.</p>"
+        cells = "".join(
+            f"<div class='xr-note xr-note--{c} xr-note--empty'>"
+            + ("<span class='xr-note__placeholder'>이곳에 당신의 기준이 채워져요</span>" if i == 0 else "")
+            + "</div>"
+            for i, c in enumerate(NOTE_COLORS)
+        )
+        hint = "<p class='xr-notes__hint'>대화를 마치고 위 문자를 채워 붙여보세요.</p>"
         return f"<div class='xr-grid'>{cells}</div>{hint}"
 
     cells = []
@@ -1005,7 +1018,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-left, right = st.columns(2, gap="large")
+left, right = st.columns([6, 4], gap="large")
 
 
 # ─────────────────────────────────────────────
@@ -1030,7 +1043,7 @@ with left:
         cfg = MODES[mode_key]
         st.markdown("<div class='eum-divider'></div>", unsafe_allow_html=True)
 
-        chat_box = st.container(height=360, border=False, key="eum_chat")
+        chat_box = st.container(height=460, border=False, key="eum_chat")
         visible = [m for m in st.session_state.messages if m["content"].strip()]
         with chat_box:
             if not visible:
@@ -1078,7 +1091,7 @@ with right:
     )
 
     with st.container(key="xroom_card"):
-        form_col, notes_col = st.columns([1.2, 1], gap="medium")
+        form_col, notes_col = st.container(), st.container(key="xr_board")
 
         # 초안 채우기 버튼은 여유 있는 오른쪽 보드 아래에 둔다.
         # 폼 위젯보다 먼저 값을 넣어야 하므로 오른쪽 컬럼을 먼저 채우고,
